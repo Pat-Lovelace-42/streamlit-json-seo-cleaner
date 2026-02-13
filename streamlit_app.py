@@ -30,7 +30,10 @@ if uploaded_file is not None:
             elif any(word in key for word in keep_keywords):
                 cleaned_data[key] = value
 
-        final_json = json.dumps(cleaned_data, indent=4)
+        # Convert dictionary back to a string
+        # indent=4 makes it pretty
+        # ensure_ascii=False keeps symbols like ® readable
+        final_json = json.dumps(cleaned_data, indent=4, ensure_ascii=False)
         
         # 4. Success UI
         st.success(f"Successfully filtered! Kept {len(cleaned_data)} keys.")
@@ -38,7 +41,7 @@ if uploaded_file is not None:
         # Download Button
         st.download_button(
             label="📥 Download Cleaned JSON",
-            data=final_json,
+            data=final_json.encode('utf-8'),
             file_name=new_filename,
             mime="application/json"
         )
