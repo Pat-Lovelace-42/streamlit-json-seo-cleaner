@@ -2,22 +2,35 @@ import streamlit as st
 import json
 import os
 
-st.set_page_config(page_title="JSON SEO Cleaner", page_icon="🧹")
+st.set_page_config(page_title="JSON Cleaner", page_icon="🧹")
 
-st.title("🧹 JSON Metadata Cleaner")
+st.title("🧹 JSON Cleaner")
+
+# Mode selector (SEO vs Summary)
+mode = st.radio(
+    Select keys to keep:",
+    options=["SEO", "Summary"],
+    index=0,
+)
+
+# Mode map -> keywords
+KEYWORDS_BY_MODE = {
+    "SEO": ["seo_config", "thing_schema_type"],
+    "Summary": ["summary"],
+}
+keep_keywords = KEYWORDS_BY_MODE[mode]
 
 uploaded_file = st.file_uploader("Choose a JSON file", type="json")
 
 if uploaded_file is not None:
     original_name = os.path.splitext(uploaded_file.name)[0]
-    new_filename = f"{original_name}_seo.json"
+    new_filename = f"{original_name}_to_translate.json"
 
     # 1. Load the actual JSON data
     try:
         data = json.load(uploaded_file)
         
         # 2. Define our "Keep" rules
-        keep_keywords = ["seo_config", "thing_schema_type"]
         keep_exact = ["page", "language", "url", "text_nodes"]
 
         # 3. Create a new dictionary with only the keys we want
