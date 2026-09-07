@@ -67,11 +67,11 @@ col1, col2 = st.columns(2)
 with col1:
     translations_file = st.file_uploader("1. Translations JSON", type="json", key="translations")
 with col2:
-    story_file = st.file_uploader("2. Story JSON (Storyblok)", type="json", key="story")
+    story_file = st.file_uploader("2. Story Draft JSON (Storyblok)", type="json", key="story")
 
 if translations_file is not None and story_file is not None:
     original_name = os.path.splitext(translations_file.name)[0]
-    new_filename = f"{original_name}_seo.json"
+    new_filename = f"{original_name}_to_translate.json"
 
     try:
         translations = json.load(translations_file)
