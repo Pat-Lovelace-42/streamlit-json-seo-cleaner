@@ -6,58 +6,109 @@ st.set_page_config(page_title="JSON Cleaner", page_icon="🧹")
 
 st.title("🧹 JSON Cleaner")
 
-# Mode selector (SEO vs Summary)
-mode = st.radio(
-    "Select keys to keep:",
-    options=["SEO"],
-    index=0,
-)
-
-# Mode map -> keywords
-KEYWORDS_BY_MODE = {
-    "SEO": ["seo_config", "thing_schema_type"],
+# --- Mode configuration -----------------------------------------------------
+# Each mode defines which root component to look for in the story.
+# All _uid values nested inside that component are collected recursively.
+MODES = {
+    "SEO": ["seo_config"],
     "Summary": ["summary"],
 }
-keep_keywords = KEYWORDS_BY_MODE[mode]
 
-uploaded_file = st.file_uploader("Choose a JSON file", type="json")
+# Metadata keys that are always kept as-is (they carry no uuid)
+keep_exact = ["page", "language", "url", "text_nodes"]
 
-if uploaded_file is not None:
-    original_name = os.path.splitext(uploaded_file.name)[0]
-    new_filename = f"{original_name}_to_translate.json"
 
-    # 1. Load the actual JSON data
+def find_components(node, target):
+    """Return every dict in the tree whose 'component' field == target."""
+    results = []
+    if isinstance(node, dict):
+        if node.get("component") == target:
+            results.append(node)
+        for value in node.values():
+            results.extend(find_components(value, target))
+    elif isinstance(node, list):
+        for item in node:
+            results.extend(find_components(item, target))
+    return results
+
+
+def collect_uuids(node):
+    """Recursively collect all '_uid' values within a subtree."""
+    uuids = set()
+    if isinstance(node, dict):
+        uid = node.get("_uid")
+        if isinstance(uid, str):
+            uuids.add(uid)
+        for value in node.values():
+            uuids |= collect_uuids(value)
+    elif isinstance(node, list):
+        for item in node:
+            uuids |= collect_uuids(item)
+    return uuids
+
+
+def uuids_for_modes(story_data, target_components):
+    """For each target component, gather the uuids of all its instances."""
+    keep = set()
+    for target in target_components:
+        for comp in find_components(story_data, target):
+            keep |= collect_uuids(comp)
+    return keep
+
+
+def key_uuid(key):
+    """The uuid is the prefix before the first ':' -> '<uuid>:<component>:<field>'."""
+    return key.split(":", 1)[0]
+
+
+mode = st.radio("Select keys to keep:", options=list(MODES.keys()), index=0)
+
+col1, col2 = st.columns(2)
+with col1:
+    translations_file = st.file_uploader("1. Translations JSON", type="json", key="translations")
+with col2:
+    story_file = st.file_uploader("2. Story JSON (Storyblok)", type="json", key="story")
+
+if translations_file is not None and story_file is not None:
+    original_name = os.path.splitext(translations_file.name)[0]
+    new_filename = f"{original_name}_seo.json"
+
     try:
-        data = json.load(uploaded_file)
-        
-        # 2. Define our "Keep" rules
-        keep_exact = ["page", "language", "url", "text_nodes"]
+        translations = json.load(translations_file)
+        story = json.load(story_file)
 
-        # 3. Create a new dictionary with only the keys we want
+        target_components = MODES[mode]
+        keep_uuids = uuids_for_modes(story, target_components)
+
+        if not keep_uuids:
+            st.warning(
+                f"No {target_components} component found in the story. "
+                "Make sure you uploaded the correct JSON."
+            )
+
         cleaned_data = {}
-        for key, value in data.items():
-            # Check if key is one of the exact metadata keys
+        for key, value in translations.items():
             if key in keep_exact:
                 cleaned_data[key] = value
-            # OR check if one of the partial keywords is inside the key string
-            elif any(word in key for word in keep_keywords):
+            elif key_uuid(key) in keep_uuids:
                 cleaned_data[key] = value
 
-        # Convert dictionary back to a string
-        # indent=4 makes it pretty
-        # ensure_ascii=False keeps symbols like ® readable
         final_json = json.dumps(cleaned_data, indent=4, ensure_ascii=False)
-        
-        # 4. Success UI
-        st.success(f"Successfully filtered! Kept {len(cleaned_data)} keys.")
 
-        # Download Button
+        st.success(
+            f"Filtered! Kept {len(cleaned_data)} keys "
+            f"using {len(keep_uuids)} uuid(s) from component(s) {target_components}."
+        )
+
         st.download_button(
             label="📥 Download Cleaned JSON",
-            data=final_json.encode('utf-8'),
+            data=final_json.encode("utf-8"),
             file_name=new_filename,
-            mime="application/json"
+            mime="application/json",
         )
+
+        with st.expander(f"UUIDs to keep ({len(keep_uuids)})"):
+            st.code("\n".join(sorted(keep_uuids)) or "(none)", language="text")
 
         with st.expander("Preview Cleaned Data", expanded=True):
             st.code(final_json, language="json")
