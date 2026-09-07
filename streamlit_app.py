@@ -9,7 +9,7 @@ st.title("🧹 JSON Cleaner")
 # Mode selector (SEO vs Summary)
 mode = st.radio(
     "Select keys to keep:",
-    options=["SEO", "Summary"],
+    options=["SEO"],
     index=0,
 )
 
